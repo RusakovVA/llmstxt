@@ -1,0 +1,149 @@
+document.addEventListener('DOMContentLoaded', function() {
+    // LLMS.txt Generation
+    const generateBtn = document.getElementById('generate-btn');
+    const websiteUrl = document.getElementById('website-url');
+    const resultContainer = document.getElementById('result-container');
+    const resultContent = document.getElementById('result-content');
+    const copyBtn = document.getElementById('copy-btn');
+    const downloadBtn = document.getElementById('download-btn');
+    const loading = document.getElementById('loading');
+    let currentContent = '';
+
+    generateBtn.addEventListener('click', async function() {
+        const url = websiteUrl.value.trim();
+        if (!url) {
+            showError('Please enter a website URL');
+            return;
+        }
+        try {
+            new URL(url.startsWith('http') ? url : `https://${url}`);
+        } catch (e) {
+            showError('Please enter a valid URL (e.g. "example.com" or "https://example.com")');
+            return;
+        }
+        loading.style.display = 'block';
+        resultContainer.style.display = 'none';
+        generateBtn.disabled = true;
+        currentContent = '';
+
+        try {
+            const response = await fetch('generate.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: new URLSearchParams({ url: url })
+            });
+            const data = await response.json();
+            if (!response.ok || !data.success) {
+                throw new Error(data.error || 'Server error');
+            }
+            currentContent = data.content;
+            resultContent.value = data.content;
+            resultContainer.style.display = 'block';
+        } catch (error) {
+            showError(error.message);
+            console.error('Generation error:', error);
+        } finally {
+            loading.style.display = 'none';
+            generateBtn.disabled = false;
+        }
+    });
+
+    copyBtn.addEventListener('click', function() {
+        if (!currentContent) return;
+        navigator.clipboard.writeText(currentContent).then(() => {
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                copyBtn.innerHTML = originalText;
+            }, 2000);
+        });
+    });
+
+    downloadBtn.addEventListener('click', function() {
+        if (!currentContent) return;
+        const blob = new Blob([currentContent], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `llms.txt`; // Always save as llms.txt
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    });
+
+    function showError(message) {
+        const errorEl = document.createElement('div');
+        errorEl.className = 'error-message';
+        errorEl.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${message}`;
+        document.querySelectorAll('.error-message').forEach(el => el.remove());
+        generateBtn.parentNode.insertBefore(errorEl, generateBtn.nextSibling);
+        setTimeout(() => errorEl.remove(), 5000);
+    }
+
+    websiteUrl.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            generateBtn.click();
+        }
+    });
+
+    // ---- FAQ accordion ----
+    const currentYearEl = document.getElementById('current-year');
+    if (currentYearEl) {
+        currentYearEl.textContent = new Date().getFullYear();
+    }
+    document.querySelectorAll('.faq-question').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const item = btn.closest('.faq-item');
+            const isOpen = item.classList.contains('open');
+            document.querySelectorAll('.faq-item.open').forEach(i => {
+                i.classList.remove('open');
+                i.querySelector('.faq-question').setAttribute('aria-expanded', 'false');
+            });
+            if (!isOpen) {
+                item.classList.add('open');
+                btn.setAttribute('aria-expanded', 'true');
+            } else {
+                item.classList.remove('open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        });
+    });
+
+    // ---- AI Quotes carousel (arrows only, no dots) ----
+    const quotes = document.querySelectorAll('.ai-quote-carousel .ai-quote');
+    const prevBtn = document.querySelector('.ai-quote-carousel .carousel-prev');
+    const nextBtn = document.querySelector('.ai-quote-carousel .carousel-next');
+    let current = 0;
+    let autoSwitch = null;
+
+    if (quotes.length && prevBtn && nextBtn) {
+        function showQuote(index) {
+            quotes.forEach((q, i) => {
+                q.classList.toggle('active', i === index);
+            });
+            current = index;
+        }
+
+        function prevQuote() {
+            showQuote((current - 1 + quotes.length) % quotes.length);
+            resetAuto();
+        }
+        function nextQuote() {
+            showQuote((current + 1) % quotes.length);
+            resetAuto();
+        }
+
+        prevBtn.addEventListener('click', prevQuote);
+        nextBtn.addEventListener('click', nextQuote);
+
+        function autoSwitchQuotes() {
+            nextQuote();
+        }
+        function resetAuto() {
+            clearInterval(autoSwitch);
+            autoSwitch = setInterval(autoSwitchQuotes, 7000);
+        }
+        resetAuto();
+    }
+});
